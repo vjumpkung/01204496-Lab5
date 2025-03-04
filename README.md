@@ -83,7 +83,7 @@ commit hash - 0xb6a578c305cf2ed3566259d58ee9fb3b08d42535f30928c4115da57cbc35e690
 
 ใน function withdrawMoney
 
-```sol
+```solidity
 function withdrawMoney() public {
     require(address_list[msg.sender]);
     require(timeUnit.elapsedSeconds(msg.sender) > 30 seconds);
@@ -103,7 +103,7 @@ function withdrawMoney() public {
 
 ใน struct Player มีองค์ประกอบดังนี้
 
-```sol
+```solidity
 struct Player {
     bytes32 player_choice; // 01 - Rock, 02 - Paper , 03 - Scissors , 04 = Lizard , 05 = Spock
     bytes32 player_reveal_hash;
@@ -117,13 +117,13 @@ struct Player {
 เมื่อได้ reveal hash ทั้ง 2 คนแล้วจะทำการตัดสินดังนี้
 
 1. ดึง reveal hash แต่ละคนออกมา
-```sol
+```solidity
 bytes32 p0Choice = player[playersAddress[0]].player_reveal_hash;
 bytes32 p1Choice = player[playersAddress[1]].player_reveal_hash;
 ```
 
 2. แปลง bytes32 -> uint256 และ bitwise and กับ `0xFF` แล้วค่อย -1 ออกเพื่อให้ง่ายต่อการตัดสินผลลัพธ์
-```sol
+```solidity
 uint256 finalPlayer0Choice = (uint256(p0Choice) & 0xFF) - 1;
 uint256 finalPlayer1Choice = (uint256(p1Choice) & 0xFF) - 1;
 ```
@@ -150,7 +150,7 @@ Rock crushes Scissors
 
 จึง map เลขใหม่ได้เป็น ผ่าน function mapChoice
 
-```sol
+```solidity
 function mapChoice(uint256 choice) internal pure returns (uint8) {
     if (choice == 0) return 0; // Rock -> Rock
     if (choice == 1) return 2; // Paper -> Paper becomes position 2
@@ -163,7 +163,7 @@ function mapChoice(uint256 choice) internal pure returns (uint8) {
 
 4. สามารถตัดสินผลการแพ้ชนะได้ดังนี้ โดยใช้วิธี modulo
 
-```sol
+```solidity
 emit playerChoice(playersAddress[0], finalPlayer0Choice);
 emit playerChoice(playersAddress[1], finalPlayer1Choice);
 
