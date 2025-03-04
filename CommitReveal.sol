@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
-
 pragma solidity >=0.8.2 <0.9.0;
+
+// copy from 204496/219493 (ภาคปลาย 2567) การเงินแบบรวมศูนย์กับแบบกระจายศูนย์ (CeFi vs DeFi) and modify by adding address to specific address by parameters not contract address.
 
 contract CommitReveal {
     uint8 public max = 100;
@@ -17,11 +18,7 @@ contract CommitReveal {
         commits[add].commit = dataHash;
         commits[add].block = uint64(block.number);
         commits[add].revealed = false;
-        emit CommitHash(
-            add,
-            commits[add].commit,
-            commits[add].block
-        );
+        emit CommitHash(add, commits[add].commit, commits[add].block);
     }
 
     event CommitHash(address sender, bytes32 dataHash, uint64 block);

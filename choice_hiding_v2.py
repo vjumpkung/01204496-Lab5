@@ -1,11 +1,17 @@
 import random
+import sys
 # generate 31 random bytes
 rand_num = random.getrandbits(256 - 8)
 rand_bytes = hex(rand_num)
 
 # 01 - Rock, 02 - Paper , 03 - Scissors , 04 = Lizard , 05 = Spock
 # concatenate choice to rand_bytes to make 32 bytes data_input
-choice = '01'
+while True:
+    choice = input()
+
+    if choice in ['01','02','03','04','05']:
+        break
+
 data_input = rand_bytes + choice
 print(data_input)
 print(len(data_input))

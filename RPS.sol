@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
 pragma solidity >=0.7.0 <0.9.0;
+
+// Import 2 Smart Contract which necessary for minimum time to allow withdraw and commit-reveal to hide user choice input.
 import "TimeUnit.sol";
 import "CommitReveal.sol";
 
 contract RPS {
+    // Initial Imported Smart Contract
+    TimeUnit private timeUnit = new TimeUnit();
+    CommitReveal private commitReveal = new CommitReveal();
+
+    // using struct instead of mapping of address->each types
     struct Player {
         bytes32 player_choice; // 01 - Rock, 02 - Paper , 03 - Scissors , 04 = Lizard , 05 = Spock
         bytes32 player_reveal_hash;
@@ -12,27 +19,23 @@ contract RPS {
         bool player_not_revealed;
     }
 
-    TimeUnit private timeUnit = new TimeUnit();
-    CommitReveal private commitReveal = new CommitReveal();
+    // Initial smart contract state varaible
     uint256 private numPlayer = 0;
     uint256 private revealCount = 0;
     uint256 private reward = 0;
     uint256 private numInput = 0;
+
     mapping(address => bool) private address_list;
-    mapping(uint256 => uint8) private choice_remap;
     mapping(address => Player) private player;
+
     address[] private playersAddress;
 
     constructor() {
+        // using constructor to hardcoded address to prevent others address to play this game.
         address_list[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = true;
         address_list[0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2] = true;
         address_list[0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db] = true;
         address_list[0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB] = true;
-        choice_remap[0] = 0; // Rock -> Rock
-        choice_remap[1] = 2; // Paper -> Paper becomes position 2
-        choice_remap[2] = 4; // Scissors -> Scissors becomes position 4
-        choice_remap[3] = 3; // Lizard stays at position 3
-        choice_remap[4] = 1; // Spock -> Spock becomes position 1
     }
 
     function addPlayer() public payable {
@@ -50,33 +53,36 @@ contract RPS {
         playersAddress.push(msg.sender); // push address of sender to array
         numPlayer++; // increase numPlayer by one
 
-        timeUnit.setStartTime(msg.sender);
+        timeUnit.setStartTime(msg.sender); // when addPlayer will collect address to startTime for prevent eth lock in this contract.
     }
 
     function input(bytes32 choice) public {
-        require(numPlayer == 2);
-        require(player[msg.sender].player_not_played);
-        require(player[msg.sender].player_not_revealed);
-        player[msg.sender].player_choice = choice;
-        commitReveal.commit(choice, msg.sender);
-        player[msg.sender].player_not_played = false;
-        numInput++;
+        require(numPlayer == 2); // Player can input choice when two player use addPlayer into game.
+        require(player[msg.sender].player_not_played); // Player must not played (not input)
+        require(player[msg.sender].player_not_revealed); // Player must not reveal choice
+        player[msg.sender].player_choice = choice; // assign choice -> should be commit hash
+        commitReveal.commit(choice, msg.sender); // we pass address into function to easier mapping in CommitReveal smart contract.
+        player[msg.sender].player_not_played = false; // assign not played to false
+        numInput++; // Increase numInput
     }
 
     function revealChoice(bytes32 revealHash) public {
-        require(numInput==2);
-        commitReveal.reveal(revealHash, msg.sender);
+        require(numInput == 2); // when both player input commit hash player can reveal hash
+        commitReveal.reveal(revealHash, msg.sender); // check reveal hash is valid
 
-        player[msg.sender].player_not_revealed = false;
-        player[msg.sender].player_reveal_hash = revealHash;
+        player[msg.sender].player_not_revealed = false; // set player is reveal their choice.
+        player[msg.sender].player_reveal_hash = revealHash; // assign revealHash into player struct
 
-        revealCount++;
+        revealCount++; // increase revealCount
         if (revealCount == 2) {
-            _checkWinnerAndPay();
+            _checkWinnerAndPay(); // game will check winner if revealCount equals 2
         }
     }
 
     function _reset() private {
+        /*
+            this function using when game end succesfully and reset for play this game again.
+        */
         numPlayer = 0;
         reward = 0;
         numInput = 0;
@@ -97,6 +103,10 @@ contract RPS {
     }
 
     function _checkWinnerAndPay() private {
+        /*
+            get reveeal hash and convert into uint256 and bitwise and with 0xFF and -1 to get real choice like
+            0 - Rock, 1 - Paper , 2 - Scissors , 3 = Lizard , 4 = Spock
+        */
         bytes32 p0Choice = player[playersAddress[0]].player_reveal_hash;
         bytes32 p1Choice = player[playersAddress[1]].player_reveal_hash;
         address payable account0 = payable(playersAddress[0]);
@@ -105,24 +115,25 @@ contract RPS {
         uint256 finalPlayer0Choice = (uint256(p0Choice) & 0xFF) - 1;
         uint256 finalPlayer1Choice = (uint256(p1Choice) & 0xFF) - 1;
 
+        /*
+            Choice validation -> if invalid, will be tie because each player know their choice already.
+        */
         if (!(finalPlayer0Choice <= 4 && finalPlayer0Choice >= 0)) {
-            player[playersAddress[0]].player_not_played = true;
-            player[playersAddress[0]].player_not_revealed = true;
-            revealCount--;
-            require(
-                finalPlayer0Choice <= 4 && finalPlayer0Choice >= 0,
-                "Input choice wrong (please reinput commit and re-reveal)"
-            );
+            account0.transfer(reward / 2);
+            account1.transfer(reward / 2);
+            _reset();
+            return;
         }
         if (!(finalPlayer1Choice <= 4 && finalPlayer0Choice >= 0)) {
-            player[playersAddress[1]].player_not_played = true;
-            player[playersAddress[1]].player_not_revealed = true;
-            revealCount--;
-            require(
-                finalPlayer1Choice <= 4 && finalPlayer0Choice >= 0,
-                "Input choice wrong (please reinput commit and re-reveal)"
-            );
+            account0.transfer(reward / 2);
+            account1.transfer(reward / 2);
+            _reset();
+            return;
         }
+
+        /*
+            if choice is valid will calculate remapping by using mapChoice and judge using modulo method to decide the winner of this game
+        */
 
         emit playerChoice(playersAddress[0], finalPlayer0Choice);
         emit playerChoice(playersAddress[1], finalPlayer1Choice);
@@ -144,14 +155,24 @@ contract RPS {
             account1.transfer(reward);
         }
 
+        // reset state variable for playing again.
         _reset();
     }
 
+    
     function getDepositTime() public view returns (uint256) {
+        // using for checking deposit time
         return timeUnit.elapsedSeconds(msg.sender);
     }
 
     function withdrawMoney() public {
+
+        /*
+            This function is allow player to withdraw money from smart contract when elapsed time more than 30 seconds by 2 cases
+            1. no seconds player
+            2. both player is not input their commit hash
+        */
+
         require(address_list[msg.sender]);
         require(timeUnit.elapsedSeconds(msg.sender) > 30 seconds);
         require(player[msg.sender].player_not_played); // Check if all players are already revealed and committed their choices before withdrawMone

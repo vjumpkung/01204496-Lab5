@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+// copy from 204496/219493 (ภาคปลาย 2567) การเงินแบบรวมศูนย์กับแบบกระจายศูนย์ (CeFi vs DeFi)
+
 pragma solidity >=0.8.2 <0.9.0;
 
 contract Convert {

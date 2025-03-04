@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.5.0 <0.9.0;
 
+// copy from 204496/219493 (ภาคปลาย 2567) การเงินแบบรวมศูนย์กับแบบกระจายศูนย์ (CeFi vs DeFi) and modify by adding address to specific address by parameters not contract address.
+
 contract TimeUnit {
     // Declaring a  state variable that will
     // store the current block timestamp
