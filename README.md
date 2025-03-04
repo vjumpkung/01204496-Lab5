@@ -4,11 +4,11 @@
 
 ## ภาพรวมของ Repo ทั้งหมด
 
-- RPS.sol คือ smart contract ที่ไว้ใช้เล่นเกมพนันเป่ายิ้งฉุบด้วย
-- TimeUnit.sol คือ smart contract ที่ไว้ในการนับเวลา โดยใช้เมื่อมีผู้เล่นเข้ามาเล่น ก็จะเริ่มนับเวลาที่เริ่มฝากเงินเข้าสู่ RPS.sol smart contract
-- CommitReveal.sol คือ smart contract ที่ไว้ใช้สำหรับ การทำ Commit Reveal Hash เพื่อใช้ในการซ่อนคำตอบเพื่อในการป้องกัน front-running
-- Convert.sol คือ smart contract ที่ใช้แปลง bytes32 string จาก choice_hiding_v2.py ที่ใช้ในการ hash ช้อยเบื้องต้น
-- choice_hiding_v2.py คือ python script ที่ใช้ในการสร้างช้อย
+- `RPS.sol` คือ smart contract ที่ไว้ใช้เล่นเกมพนันเป่ายิ้งฉุบด้วย
+- `TimeUnit.sol` คือ smart contract ที่ไว้ในการนับเวลา โดยใช้เมื่อมีผู้เล่นเข้ามาเล่น ก็จะเริ่มนับเวลาที่เริ่มฝากเงินเข้าสู่ RPS.sol smart contract
+- `CommitReveal.sol` คือ smart contract ที่ไว้ใช้สำหรับ การทำ Commit Reveal Hash เพื่อใช้ในการซ่อนคำตอบเพื่อในการป้องกัน front-running
+- `Convert.sol` คือ smart contract ที่ใช้แปลง bytes32 string จาก choice_hiding_v2.py ที่ใช้ในการ hash ช้อยเบื้องต้น
+- `choice_hiding_v2.py` คือ python script ที่ใช้ในการสร้างช้อย
 
 ## โค้ดที่ป้องกันการ lock เงินไว้ใน contract
 
@@ -19,7 +19,62 @@
 - การซ่อน choice สามารถทำได้ดังนี้
 
 1. ให้ผู้ใช้เลือกว่าจะเอาเลขไหนในการสร้าง bytes32 hash ก่อนโดยใช้  string concat กับ randombytes ของ python ในการสร้าง choice ที่จะเอาไว้ใช้ในการ revealHash ทีหลัง
-2. ให้รันคำสั่ง getHash ใน smartc contract Convert.sol โดยให้ input เป็น choice ที่ hash มาแล้ว จะได้ commit hash ออกมา
+
+ตัวอย่าง python script จากไฟล์ `choice_hiding_v2.py`
+```py
+import random
+import sys
+# generate 31 random bytes
+rand_num = random.getrandbits(256 - 8)
+rand_bytes = hex(rand_num)
+
+# 01 - Rock, 02 - Paper , 03 - Scissors , 04 = Lizard , 05 = Spock
+# concatenate choice to rand_bytes to make 32 bytes data_input
+while True:
+    choice = input()
+
+    if choice in ['01','02','03','04','05']:
+        break
+
+data_input = rand_bytes + choice
+print(data_input)
+print(len(data_input))
+print()
+
+# need padding if data_input has less than 66 symbols (< 32 bytes)
+if len(data_input) < 66:
+    print("Need padding.")
+    data_input = data_input[0:2] + '0' * (66 - len(data_input)) + data_input[2:]
+    assert(len(data_input) == 66)
+else:
+    print("Need no padding.")
+print("Choice is", choice)
+print("Use the following bytes32 as an input to the getHash function:", data_input)
+print(len(data_input))
+```
+
+exmple output
+
+```
+05
+0x4255a7b65c3740f1f30f8adfcd59995b8c0bdd07def8077935a1e270506ed805
+66
+
+Need no padding.
+Choice is 05
+Use the following bytes32 as an input to the getHash function: 0x4255a7b65c3740f1f30f8adfcd59995b8c0bdd07def8077935a1e270506ed805
+66
+```
+
+2. ให้รันคำสั่ง getHash ใน smart contract Convert.sol โดยให้ input เป็น choice ที่ hash มาแล้ว จะได้ commit hash ออกมา
+
+![image](https://github.com/user-attachments/assets/6ed19159-c3c0-409b-9558-50c7b307469e)
+
+```
+reveal hash - 0x4255a7b65c3740f1f30f8adfcd59995b8c0bdd07def8077935a1e270506ed805
+commit hash - 0xb6a578c305cf2ed3566259d58ee9fb3b08d42535f30928c4115da57cbc35e690
+```
+
 3. ให้นำ commit hash ไปใส่ที่ input ซึ่งอยู่ที่ smart contract RPS.sol
 4. การที่ผู้เล่นจะ reveal choice ได้ก็ต่อเมื่อผู้เล่น 2 คนได้ input commit hash แล้วทั้งคู่
 5. เมื่อมีคนในคนหนึ่ง reveal choice แล้ว ผู้เล่นอีกคนไม่สามารถแก้ commit hash ได้เนื่องจากได้ถูกบันทึกแล้วว่า ได้ทำการเล่นแล้ว
