@@ -86,6 +86,15 @@ contract RPS {
         playersAddress.pop();
     }
 
+    function mapChoice(uint256 choice) internal pure returns (uint8) {
+        if (choice == 0) return 0; // Rock -> Rock
+        if (choice == 1) return 2; // Paper -> Paper becomes position 2
+        if (choice == 2) return 4; // Scissors -> Scissors becomes position 4
+        if (choice == 3) return 3; // Lizard stays at position 3
+        if (choice == 4) return 1; // Spock -> Spock becomes position 1
+        revert("Invalid choice");
+    }
+
     function _checkWinnerAndPay() private {
         bytes32 p0Choice = player[playersAddress[0]].player_reveal_hash;
         bytes32 p1Choice = player[playersAddress[1]].player_reveal_hash;
@@ -117,8 +126,8 @@ contract RPS {
         emit playerChoice(playersAddress[0], finalPlayer0Choice);
         emit playerChoice(playersAddress[1], finalPlayer1Choice);
 
-        uint8 mappedPlayer0 = choice_remap[finalPlayer0Choice];
-        uint8 mappedPlayer1 = choice_remap[finalPlayer1Choice];
+        uint8 mappedPlayer0 = mapChoice(finalPlayer0Choice);
+        uint8 mappedPlayer1 = mapChoice(finalPlayer1Choice);
         uint8 diff = (5 + mappedPlayer0 - mappedPlayer1) % 5;
 
         if (diff == 0) {
