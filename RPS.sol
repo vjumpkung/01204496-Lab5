@@ -64,6 +64,7 @@ contract RPS {
     }
 
     function revealChoice(bytes32 revealHash) public {
+        require(numInput==2);
         commitReveal.reveal(revealHash, msg.sender);
 
         player[msg.sender].player_not_revealed = false;
