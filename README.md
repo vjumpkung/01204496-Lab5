@@ -10,9 +10,53 @@
 - `Convert.sol` คือ smart contract ที่ใช้แปลง bytes32 string จาก choice_hiding_v2.py ที่ใช้ในการ hash ช้อยเบื้องต้น
 - `choice_hiding_v2.py` คือ python script ที่ใช้ในการสร้างช้อย
 
+## สถานการณ์การเล่น Smart Contract RPS
+
+### สถานการณ์ที่ 1 เล่นได้ปกติ 
+
+1. ผู้เล่นที่ 1 กด addPlayer
+2. ผู้เล่นที่ 2 กด addPlayer
+3. ผู้เล่นที่ 1 ส่ง commit hash ผ่าน input
+4. ผู้เล่นที่ 2 ส่ง commit hash ผ่าน input
+5. ผู้เล่นที่ 1 ส่ง reveal hash ผ่าน revealChoice
+6. ผู้เล่นที่ 2 ส่ง reveal hash ผ่าน revealChoice
+7. เกมจะตัดสินว่า แพ้ ชนะ หรือ เสมอ
+
+### สถานการณ์ที่ 2 ผู้เล่นไม่ครบ 
+
+1. ผู้เล่นที่ 1 กด addPlayer
+
+5 วินาทีต่อมา
+   
+2. ผู้เล่นที่ 1 ต้องการถอนเงิน โดยการกด withdrawMoney
+
+### สถานการณ์ที่ 3 ผู้เล่นอีก 1 คนไม่ใส่ Commit Hash 
+
+1. ผู้เล่นที่ 1 กด addPlayer
+2. ผู้เล่นที่ 2 กด addPlayer
+3. ผู้เล่นที่ 1 ส่ง commit hash ผ่าน input
+
+5 วินาทีต่อมา
+
+4. ผู้เล่นที่ 1 ต้องการถอนเงิน โดยการกด withdrawMoney ซึ่งสามารถถอนได้ 
+5. ผู้เล่นที่ 2 (ที่ยังไม่ได้ใส่ commit hash) สามารถถอนเงินได้เช่นกัน แต่ผู้เล่นใหม่จะไม่สามารถเข้ามาเล่นได้จนกว่าผู้เล่นที่ยังไม่ได้ถอนเงินกด withdrawMoney
+
+### สถานการณ์ที่ 4 ผู้เล่นอีก 1 คนไม่ใส่ Reveal Hash 
+
+1. ผู้เล่นที่ 1 กด addPlayer
+2. ผู้เล่นที่ 2 กด addPlayer
+3. ผู้เล่นที่ 1 ส่ง commit hash ผ่าน input
+4. ผู้เล่นที่ 2 ส่ง commit hash ผ่าน input
+5. ผู้เล่นที่ 1 ส่ง reveal hash ผ่าน revealChoice
+
+แต่ผู้เล่นที่ 2 ไม่ส่ง reveal hash + 5 วินาทีต่อมา
+
+6. ผู้เล่นที่ 1 ต้องการถอนเงิน โดยการกด withdrawMoney ซึ่งสามารถถอนได้ เพราะว่าผู้เล่นที่ 1 ได้ reveal hash เกิน 5 วินาทีแล้ว
+7. ผู้เล่นที่ 2 (ที่ยังไม่ได้ใส่ reveal hash) สามารถถอนเงินได้เช่นกัน แต่ผู้เล่นใหม่จะไม่สามารถเข้ามาเล่นได้จนกว่าผู้เล่นที่ยังไม่ได้ถอนเงินกด withdrawMoney
+
 ## โค้ดที่ป้องกันการ lock เงินไว้ใน contract
 
-- เมื่อมีการ add player เข้ามาแล้ว `timeUnit.setStartTime(msg.sender);` จะส่งจับเวลาว่า address นี้ฝากเงินเข้ามาแล้วกี่วินาที โดยผู้ใช้จะถอนเงินได้สามารถทำได้ผ่าน `withdrawMoney()` เมื่อเวลาผ่านไปแล้ว 30 วินาที (จุดนี้ hardcode เวลาไว้)
+- เมื่อมีการ add player เข้ามาแล้ว `timeUnit.setStartTime(msg.sender);` จะส่งจับเวลาว่า address นี้ฝากเงินเข้ามาแล้วกี่วินาที โดยผู้ใช้จะถอนเงินได้สามารถทำได้ผ่าน `withdrawMoney()` เมื่อเวลาผ่านไปแล้ว 5 วินาที (จุดนี้ hardcode เวลาไว้)
 
 ## โค้ดส่วนที่ทำการซ่อน choice และ commit
 
@@ -83,17 +127,44 @@ commit hash - 0xb6a578c305cf2ed3566259d58ee9fb3b08d42535f30928c4115da57cbc35e690
 
 ใน function withdrawMoney
 
+Timer จะเริ่มเมื่อ addPlayer ตั้งไว้ที่ 5
+
+- Timer จะถูกตั้งไว้ 5 วินาทีถ้าเลยจะให้ถอนเงินได้ โดย Timer จะ reset ก็ต่อเมื่อ
+1. ผู้เล่นใส่ Commit hash ผ่าน input 
+2. ผู้เล่นใส่ Reveal hash ผ่าน revealChoice
+
 ```solidity
 function withdrawMoney() public {
+    /*
+        This function is allow player to withdraw money from smart contract when elapsed time more than 30 seconds by 2 cases
+        1. no 2nd player
+        2. both player is not input their commit hash
+    */
+
     require(address_list[msg.sender]);
-    require(timeUnit.elapsedSeconds(msg.sender) > 30 seconds);
-    require(player[msg.sender].player_not_played); // Check if all players are already revealed and committed their choices before withdrawMone
+    require(msg.sender == playersAddress[player[msg.sender].idx]);
+    require(timeUnit.elapsedSeconds(msg.sender) > 5 seconds);
+    require(revealCount < 2 || numInput < 2); // 1 player in not reveal or not input commit hash yet
     address payable to = payable(msg.sender);
     to.transfer(1 ether);
     reward--;
     numPlayer--;
+    current_idx = (current_idx + 1) % 2;
+    if (numInput > 0 && !player[msg.sender].player_not_played) {
+        numInput--;
+    }
+    if (revealCount > 0 && !player[msg.sender].player_not_revealed) {
+        revealCount--;
+    }
+    delete playersAddress[player[msg.sender].idx];
     delete player[msg.sender];
-    playersAddress.pop();
+    emit gameState(
+        numInput,
+        revealCount,
+        numPlayer,
+        current_idx,
+        playersAddress
+    );
 }
 ```
 
@@ -105,6 +176,7 @@ function withdrawMoney() public {
 
 ```solidity
 struct Player {
+    uint8 idx;
     bytes32 player_choice; // 01 - Rock, 02 - Paper , 03 - Scissors , 04 = Lizard , 05 = Spock
     bytes32 player_reveal_hash;
     bool player_not_played;
