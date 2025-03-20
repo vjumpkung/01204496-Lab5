@@ -63,3 +63,5 @@ libs/remix-niks/
 apps/remix-react
 
 .states/*
+
+.deps/*

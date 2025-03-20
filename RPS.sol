@@ -5,8 +5,13 @@ pragma solidity >=0.7.0 <0.9.0;
 // Import 2 Smart Contract which necessary for minimum time to allow withdraw and commit-reveal to hide user choice input.
 import "TimeUnit.sol";
 import "CommitReveal.sol";
+import "IERC20.sol";
 
 contract RPS {
+
+    // using MKOL instead of AVAX
+    IERC20 public MKOL;
+
     // Initial Imported Smart Contract
     TimeUnit private timeUnit = new TimeUnit();
     CommitReveal private commitReveal = new CommitReveal();
@@ -27,7 +32,7 @@ contract RPS {
     uint256 private numInput = 0;
     uint8 private current_idx = 0;
 
-    mapping(address => bool) private address_list;
+    // mapping(address => bool) private address_list;
     mapping(address => Player) private player;
 
     address[] private playersAddress = [
@@ -36,30 +41,33 @@ contract RPS {
     ];
 
     constructor() {
+        MKOL = IERC20(0x3FC287aA9d2664B8D9A64a682dcf0DFcBE863Ca6);
         // using constructor to hardcoded address to prevent others address to play this game.
-        address_list[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = true;
-        address_list[0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2] = true;
-        address_list[0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db] = true;
-        address_list[0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB] = true;
+        // address_list[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = true;
+        // address_list[0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2] = true;
+        // address_list[0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db] = true;
+        // address_list[0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB] = true;
     }
 
-    function addPlayer() public payable {
-        require(address_list[msg.sender]);
+    function addPlayer(address playerAddress) public payable {
+        // require(address_list[msg.sender]); // disable to can play with any address
         require(numPlayer < 2); // Check numPlayer must be less than 2 before addPlayer
         if (numPlayer > 0) {
-            require(msg.sender != playersAddress[0]); // Sender address is not equal to first player
+            require(playerAddress != playersAddress[0], "Sender address must not equal to first player"); // Sender address is not equal to first player
         }
-        require(msg.value == 1 ether); // Sender address must have 1 ETH
+        require(MKOL.allowance(msg.sender, playerAddress) == 1000 gwei);
+
+        // require(msg.value == 0.000001 ether); // Sender address must have 0.000001 ETH
         reward += msg.value; // Add reward by msg.value
 
-        player[msg.sender].idx = current_idx;
-        player[msg.sender].player_not_played = true;
-        player[msg.sender].player_not_revealed = true;
+        player[playerAddress].idx = current_idx;
+        player[playerAddress].player_not_played = true;
+        player[playerAddress].player_not_revealed = true;
 
-        playersAddress[current_idx] = msg.sender; // push address of sender to array
+        playersAddress[current_idx] = playerAddress; // push address of sender to array
         numPlayer++; // increase numPlayer by one
 
-        timeUnit.setStartTime(msg.sender); // when addPlayer will collect address to startTime for prevent eth lock in this contract.
+        timeUnit.setStartTime(playerAddress); // when addPlayer will collect address to startTime for prevent eth lock in this contract.
         emit gameState(
             numInput,
             revealCount,
@@ -70,15 +78,18 @@ contract RPS {
         current_idx = (current_idx + 1) % 2;
     }
 
-    function input(bytes32 choice) public {
-        require(numPlayer == 2); // Player can input choice when two player use addPlayer into game.
-        require(player[msg.sender].player_not_played); // Player must not played (not input)
-        require(player[msg.sender].player_not_revealed); // Player must not reveal choice
-        player[msg.sender].player_choice = choice; // assign choice -> should be commit hash
-        commitReveal.commit(choice, msg.sender); // we pass address into function to easier mapping in CommitReveal smart contract.
-        player[msg.sender].player_not_played = false; // assign not played to false
+    function input(bytes32 choice, address playerAddress) public {
+        require(numPlayer == 2, "number of player should be 2"); // Player can input choice when two player use addPlayer into game.
+        require(player[playerAddress].player_not_played); // Player must not played (not input)
+        require(player[playerAddress].player_not_revealed); // Player must not reveal choice
+        require(MKOL.allowance(msg.sender, playerAddress) == 1000 gwei);
+
+        player[playerAddress].player_choice = choice; // assign choice -> should be commit hash
+        commitReveal.commit(choice, playerAddress); // we pass address into function to easier mapping in CommitReveal smart contract.
+        player[playerAddress].player_not_played = false; // assign not played to false
         numInput++; // Increase numInput
-        timeUnit.setStartTime(msg.sender);
+        timeUnit.setStartTime(playerAddress);
+        MKOL.transferFrom(playerAddress, msg.sender, 1000 gwei);
         emit gameState(
             numInput,
             revealCount,
@@ -88,15 +99,15 @@ contract RPS {
         );
     }
 
-    function revealChoice(bytes32 revealHash) public {
+    function revealChoice(bytes32 revealHash, address playerAddress) public {
         require(numInput == 2); // when both player input commit hash player can reveal hash
-        commitReveal.reveal(revealHash, msg.sender); // check reveal hash is valid
+        commitReveal.reveal(revealHash, playerAddress); // check reveal hash is valid
 
-        player[msg.sender].player_not_revealed = false; // set player is reveal their choice.
-        player[msg.sender].player_reveal_hash = revealHash; // assign revealHash into player struct
+        player[playerAddress].player_not_revealed = false; // set player is reveal their choice.
+        player[playerAddress].player_reveal_hash = revealHash; // assign revealHash into player struct
 
         revealCount++; // increase revealCount
-        timeUnit.setStartTime(msg.sender);
+        timeUnit.setStartTime(playerAddress);
         emit gameState(
             numInput,
             revealCount,
@@ -154,14 +165,18 @@ contract RPS {
             Choice validation -> if invalid, will be tie because each player know their choice already.
         */
         if (!(finalPlayer0Choice <= 4 && finalPlayer0Choice >= 0)) {
-            account0.transfer(reward / 2);
-            account1.transfer(reward / 2);
+            MKOL.transferFrom(msg.sender, account0, reward / 2);
+            MKOL.transferFrom(msg.sender, account1, reward / 2);
+            // account0.transfer(reward / 2);
+            // account1.transfer(reward / 2);
             _reset();
             return;
         }
         if (!(finalPlayer1Choice <= 4 && finalPlayer0Choice >= 0)) {
-            account0.transfer(reward / 2);
-            account1.transfer(reward / 2);
+            MKOL.transferFrom(msg.sender, account0, reward / 2);
+            MKOL.transferFrom(msg.sender, account1, reward / 2);
+            // account0.transfer(reward / 2);
+            // account1.transfer(reward / 2);
             _reset();
             return;
         }
@@ -179,24 +194,28 @@ contract RPS {
 
         if (diff == 0) {
             // Tie: split the reward between both accounts
-            account0.transfer(reward / 2);
-            account1.transfer(reward / 2);
+            MKOL.transferFrom(msg.sender, account0, reward / 2);
+            MKOL.transferFrom(msg.sender, account1, reward / 2);
+            // account0.transfer(reward / 2);
+            // account1.transfer(reward / 2);
         } else if (diff == 1 || diff == 2) {
             // Player0 wins
-            account0.transfer(reward);
+            MKOL.transferFrom(msg.sender, account0, reward);
+            // account0.transfer(reward);
         } else {
             // diff == 3 || diff == 4
             // Player1 wins
-            account1.transfer(reward);
+            MKOL.transferFrom(msg.sender, account1, reward);
+            // account1.transfer(reward);
         }
 
         // reset state variable for playing again.
         _reset();
     }
 
-    function getDepositTime() public view returns (uint256) {
+    function getDepositTime(address playerAddress) public view returns (uint256) {
         // using for checking deposit time
-        return timeUnit.elapsedSeconds(msg.sender);
+        return timeUnit.elapsedSeconds(playerAddress);
     }
 
     function withdrawMoney() public {
@@ -206,12 +225,12 @@ contract RPS {
             2. both player is not input their commit hash
         */
 
-        require(address_list[msg.sender]);
+        // require(address_list[msg.sender]); // disable to allow with any address
         require(msg.sender == playersAddress[player[msg.sender].idx]);
         require(timeUnit.elapsedSeconds(msg.sender) > 5 seconds);
         require(revealCount < 2 || numInput < 2); // 1 player in not reveal or not input commit hash yet
         address payable to = payable(msg.sender);
-        to.transfer(1 ether);
+        to.transfer(0.000001 ether);
         reward--;
         numPlayer--;
         current_idx = (current_idx + 1) % 2;
